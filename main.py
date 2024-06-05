@@ -3,12 +3,15 @@ import pandas as pd
 from ultralytics import YOLO
 from tracker import Tracker
 import cvzone
+import asyncio
+import websockets
 
 # Load YOLO model
 model = YOLO('yolov8s.pt')
 
-
 # Function to capture mouse events (currently just printing coordinates)
+
+
 def RGB(event, x, y, flags, param):
     if event == cv2.EVENT_MOUSEMOVE:
         point = [x, y]
@@ -18,9 +21,6 @@ def RGB(event, x, y, flags, param):
 # Set up mouse callback
 cv2.namedWindow('RGB')
 cv2.setMouseCallback('RGB', RGB)
-
-# Load video
-cap = cv2.VideoCapture('vidp.mp4')
 
 # Load class list
 with open("coco.txt", "r") as my_file:
@@ -34,72 +34,113 @@ counter_down = []
 
 person_up = {}
 counter_up = []
-cy1, cy2, offset = 194, 220, 6
+cy1, cy2, offset = 194, 350, 6
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+# Load video
+cap = cv2.VideoCapture('vidp.mp4')
 
-    count += 1
-    if count % 3 != 0:
-        continue
+# Shared data variable
+shared_data = None
 
-    frame = cv2.resize(frame, (1020, 500))
+# Function to process video frames
 
-    results = model.predict(frame)
-    a = results[0].boxes.data
-    px = pd.DataFrame(a).astype("float")
-    detections = []
 
-    for index, row in px.iterrows():
-        x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
-        d = int(row[5])
-        c = class_list[d]
-        if 'person' in c:
-            detections.append([x1, y1, x2, y2])
+async def process_video():
+    global count, person_down, counter_down, person_up, counter_up, cap, shared_data
 
-    bbox_id = tracker.update(detections)
-    for bbox in bbox_id:
-        x3, y3, x4, y4, id = bbox
-        cx, cy = int((x3 + x4) / 2), int((y3 + y4) / 2)
-        cv2.circle(frame, (cx, cy), 4, (255, 0, 255), -1)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-        # Downside Counter
-        if (cy + offset) > cy1 > (cy - offset):
-            cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 0, 255), 2)
-            cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
-            person_down[id] = (cx, cy)
-        if id in person_down and (cy + offset) > cy2 > (cy - offset):
-            cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 255, 255), 2)
-            cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
-            if id not in counter_down:
-                counter_down.append(id)
+        count += 1
+        if count % 3 != 0:
+            # Yield control to allow other tasks to run
+            await asyncio.sleep(0.01)
+            continue
 
-        # Upside Counter
-        if (cy + offset) > cy2 > (cy - offset):
-            cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 0, 255), 2)
-            cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
-            person_up[id] = (cx, cy)
-        if id in person_up and (cy + offset) > cy1 > (cy - offset):
-            cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 255, 255), 2)
-            cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
-            if id not in counter_up:
-                counter_up.append(id)
+        frame = cv2.resize(frame, (1020, 500))
 
-    # Draw lines and counters
-    cv2.line(frame, (3, cy1), (1018, cy1), (0, 255, 0), 2)
-    cv2.line(frame, (5, cy2), (1019, cy2), (0, 255, 255), 2)
+        results = model.predict(frame)
+        a = results[0].boxes.data
+        px = pd.DataFrame(a).astype("float")
+        detections = []
 
-    down = len(counter_down)
-    up = len(counter_up)
-    cvzone.putTextRect(frame, f'Enter: {down}', (50, 60), 2, 2)
-    cvzone.putTextRect(frame, f'Exit: {up}', (50, 100), 2, 2)
-    cvzone.putTextRect(frame, f'Total: {up + down}', (800, 60), 2, 2)
+        for index, row in px.iterrows():
+            x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
+            d = int(row[5])
+            c = class_list[d]
+            if 'person' in c:
+                detections.append([x1, y1, x2, y2])
 
-    cv2.imshow("RGB", frame)
-    if cv2.waitKey(1) & 0xFF == 27:
-        break
+        bbox_id = tracker.update(detections)
+        for bbox in bbox_id:
+            x3, y3, x4, y4, id = bbox
+            cx, cy = int((x3 + x4) / 2), int((y3 + y4) / 2)
+            cv2.circle(frame, (cx, cy), 4, (255, 0, 255), -1)
 
-cap.release()
-cv2.destroyAllWindows()
+            # Downside Counter
+            if (cy + offset) > cy1 > (cy - offset):
+                cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 0, 255), 2)
+                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                person_down[id] = (cx, cy)
+            if id in person_down and (cy + offset) > cy2 > (cy - offset):
+                cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 255, 255), 2)
+                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                if id not in counter_down:
+                    counter_down.append(id)
+
+            # Upside Counter
+            if (cy + offset) > cy2 > (cy - offset):
+                cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 0, 255), 2)
+                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                person_up[id] = (cx, cy)
+            if id in person_up and (cy + offset) > cy1 > (cy - offset):
+                cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 255, 255), 2)
+                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                if id not in counter_up:
+                    counter_up.append(id)
+
+        # Draw lines and counters
+        cv2.line(frame, (3, cy1), (1018, cy1), (0, 255, 0), 2)
+        cv2.line(frame, (5, cy2), (1019, cy2), (0, 255, 255), 2)
+
+        down = len(counter_down)
+        up = len(counter_up)
+        shared_data = f'Enter: {down}, Exit: {up}, Total: {up + down}'
+        cvzone.putTextRect(frame, f'Enter: {down}', (50, 60), 2, 2)
+        cvzone.putTextRect(frame, f'Exit: {up}', (50, 100), 2, 2)
+        cvzone.putTextRect(frame, f'Total: {up + down}', (800, 60), 2, 2)
+
+        cv2.imshow("RGB", frame)
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
+
+        await asyncio.sleep(0.01)  # Yield control to allow other tasks to run
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+# WebSocket server function
+
+
+async def communication(websocket, path):
+    global shared_data
+
+    while True:
+        if shared_data:
+            await websocket.send(shared_data)
+        await asyncio.sleep(0)  # Adjust the delay as needed
+
+# Main function to start WebSocket server and video processing
+
+
+async def main():
+    start_server = websockets.serve(communication, "localhost", 8765)
+    await start_server
+
+    video_task = asyncio.create_task(process_video())
+    await asyncio.Future()  # Run forever
+
+# Run the main function
+asyncio.run(main())

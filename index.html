@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Real-Time Data</title>
+    <style>
+        #data {
+            width: 50%;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: space-around;
+            flex-direction: column;
+        }
+
+        #data p {
+            display: inline;
+            margin: 10px;
+        }
+
+        #data span {
+            font-weight: bold;
+            font-size: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Real-Time Data</h1>
+    <div id="data">
+        <p>People Enter: <span class="enter">0</span></p>
+        <p>People Exit: <span class="exit">0</span></p>
+        <p>Total People: <span class="total">0</span></p>
+    </div>
+
+    <script>
+        const socket = new WebSocket('ws://localhost:8765');
+
+        socket.onopen = function (event) {
+            console.log('WebSocket is connected.');
+        };
+
+        socket.onmessage = function (event) {
+            console.log('Received: ' + event.data);
+            const data = event.data.split(', ');
+            const enterCount = data[0].split(': ')[1];
+            const exitCount = data[1].split(': ')[1];
+            const totalCount = data[2].split(': ')[1];
+
+            document.querySelector('.enter').innerText = enterCount;
+            document.querySelector('.exit').innerText = exitCount;
+            document.querySelector('.total').innerText = totalCount;
+        };
+
+        socket.onerror = function (error) {
+            console.error('WebSocket Error: ' + error);
+        };
+
+        socket.onclose = function (event) {
+            console.log('WebSocket is closed.');
+        };
+    </script>
+</body>
+
+</html>
