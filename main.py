@@ -9,7 +9,7 @@ import websockets
 # Load YOLO model
 model = YOLO('yolov8s.pt')
 
-# Function to capture mouse events (currently just printing coordinates)
+# Function to capture mouse events (just printing coordinates)
 def RGB(event, x, y, flags, param):
     if event == cv2.EVENT_MOUSEMOVE:
         point = [x, y]
@@ -109,10 +109,7 @@ async def process_video():
         cvzone.putTextRect(frame, f'Exit: {up}', (50, 100), 2, 2)
         cvzone.putTextRect(frame, f'Total: {up + down}', (800, 60), 2, 2)
 
-       # The code snippet `cv2.imshow("RGB", frame)` is displaying the frame captured from the video
-       # feed in a window with the title "RGB". The `cv2.waitKey(1)` function waits for a key event
-       # for 1 millisecond. If the key event is triggered and the key pressed is the 'Esc' key (which
-       # corresponds to the ASCII value 27), then the loop is broken, and the video processing stops.
+       # The `cv2.waitKey(1)` function waits for a key event for 1 millisecond. 
        # This allows the user to exit the video processing loop by pressing the 'Esc' key.
         cv2.imshow("RGB", frame)
         if cv2.waitKey(1) & 0xFF == 27:
