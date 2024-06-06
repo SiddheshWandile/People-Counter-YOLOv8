@@ -10,8 +10,6 @@ import websockets
 model = YOLO('yolov8s.pt')
 
 # Function to capture mouse events (currently just printing coordinates)
-
-
 def RGB(event, x, y, flags, param):
     if event == cv2.EVENT_MOUSEMOVE:
         point = [x, y]
@@ -34,7 +32,7 @@ counter_down = []
 
 person_up = {}
 counter_up = []
-cy1, cy2, offset = 194, 350, 6
+cy1, cy2, offset = 194, 220, 6
 
 # Load video
 cap = cv2.VideoCapture('vidp.mp4')
@@ -43,8 +41,6 @@ cap = cv2.VideoCapture('vidp.mp4')
 shared_data = None
 
 # Function to process video frames
-
-
 async def process_video():
     global count, person_down, counter_down, person_up, counter_up, cap, shared_data
 
@@ -55,7 +51,6 @@ async def process_video():
 
         count += 1
         if count % 3 != 0:
-            # Yield control to allow other tasks to run
             await asyncio.sleep(0.01)
             continue
 
@@ -63,6 +58,8 @@ async def process_video():
 
         results = model.predict(frame)
         a = results[0].boxes.data
+        # The line `px = pd.DataFrame(a).astype("float")` is creating a pandas DataFrame from the data
+        # in `a` and then converting all the values in the DataFrame to float data type.
         px = pd.DataFrame(a).astype("float")
         detections = []
 
@@ -82,22 +79,22 @@ async def process_video():
             # Downside Counter
             if (cy + offset) > cy1 > (cy - offset):
                 cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 0, 255), 2)
-                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                # cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
                 person_down[id] = (cx, cy)
             if id in person_down and (cy + offset) > cy2 > (cy - offset):
                 cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 255, 255), 2)
-                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                # cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
                 if id not in counter_down:
                     counter_down.append(id)
 
             # Upside Counter
             if (cy + offset) > cy2 > (cy - offset):
                 cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 0, 255), 2)
-                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                # cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
                 person_up[id] = (cx, cy)
             if id in person_up and (cy + offset) > cy1 > (cy - offset):
                 cv2.rectangle(frame, (x3, y3), (x4, y4), (0, 255, 255), 2)
-                cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
+                # cvzone.putTextRect(frame, f'{id}', (x3, y3), 1, 2)
                 if id not in counter_up:
                     counter_up.append(id)
 
@@ -112,18 +109,21 @@ async def process_video():
         cvzone.putTextRect(frame, f'Exit: {up}', (50, 100), 2, 2)
         cvzone.putTextRect(frame, f'Total: {up + down}', (800, 60), 2, 2)
 
+       # The code snippet `cv2.imshow("RGB", frame)` is displaying the frame captured from the video
+       # feed in a window with the title "RGB". The `cv2.waitKey(1)` function waits for a key event
+       # for 1 millisecond. If the key event is triggered and the key pressed is the 'Esc' key (which
+       # corresponds to the ASCII value 27), then the loop is broken, and the video processing stops.
+       # This allows the user to exit the video processing loop by pressing the 'Esc' key.
         cv2.imshow("RGB", frame)
         if cv2.waitKey(1) & 0xFF == 27:
             break
 
-        await asyncio.sleep(0.01)  # Yield control to allow other tasks to run
+        await asyncio.sleep(0.01)  # It allow other tasks to run
 
-    cap.release()
+    cap.release()            #used to release the video capture object
     cv2.destroyAllWindows()
 
 # WebSocket server function
-
-
 async def communication(websocket, path):
     global shared_data
 
@@ -133,8 +133,6 @@ async def communication(websocket, path):
         await asyncio.sleep(0)  # Adjust the delay as needed
 
 # Main function to start WebSocket server and video processing
-
-
 async def main():
     start_server = websockets.serve(communication, "localhost", 8765)
     await start_server
