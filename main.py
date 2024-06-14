@@ -34,7 +34,7 @@ counter_down = []
 
 person_up = {}
 counter_up = []
-cy1, cy2, offset = 194, 350, 6
+cy1, cy2, offset = 194, 240, 6
 
 # Load video
 cap = cv2.VideoCapture('vidp.mp4')
