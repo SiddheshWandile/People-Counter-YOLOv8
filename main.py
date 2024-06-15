@@ -4,18 +4,28 @@ from ultralytics import YOLO
 from tracker import Tracker
 import cvzone
 import asyncio
-import websockets
 import sqlite3
 from datetime import datetime, timedelta
 
 # Load YOLO model
 model = YOLO('yolov8s.pt')
 
+# # Function to capture mouse events (currently just printing coordinates)
+# def RGB(event, x, y, flags, param):
+#     if event == cv2.EVENT_MOUSEMOVE:
+#         point = [x, y]
+#         print(point)
+
+# # Set up mouse callback
+# cv2.namedWindow('RGB')
+# cv2.setMouseCallback('RGB', RGB)
+
 # Load class list
 with open("coco.txt", "r") as my_file:
     class_list = my_file.read().split("\n")
 
 # Initialize variables
+# Add your camera sources here
 camera_sources = ['vidp.mp4', 'vidp.mp4']
 caps = [cv2.VideoCapture(src) for src in camera_sources]
 
@@ -50,13 +60,16 @@ CREATE TABLE IF NOT EXISTS PeopleCount (
 conn.commit()
 
 # Function to process video frames for a specific camera
+
+
 async def process_video(cam_index):
     global counts, person_down, counter_down, person_up, counter_up, shared_data, count_enter, count_exit
 
     cap = caps[cam_index]
     tracker = trackers[cam_index]
     frame_skip = 3  # Process every 3rd frame to reduce load
-    last_update_time = datetime.now()  # Initialize the last update time
+
+    last_update_time = datetime.now()  # Initialize last_update_time
 
     while True:
         ret, frame = cap.read()
@@ -77,6 +90,7 @@ async def process_video(cam_index):
             for box in result.boxes:
                 # Extract the bounding box coordinates safely
                 try:
+                    # Get the first bounding box
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     d = int(box.cls[0])  # Get the class index
                     c = class_list[d]
@@ -122,13 +136,13 @@ async def process_video(cam_index):
 
         down = len(counter_down[cam_index])
         up = len(counter_up[cam_index])
-        shared_data[cam_index] = f'Camera {cam_index} - Enter: {count_enter}, Exit: {count_exit}, Total: {count_enter + count_exit}'
+
         cvzone.putTextRect(frame, f'Enter: {down}', (50, 60), 2, 2)
         cvzone.putTextRect(frame, f'Exit: {up}', (50, 100), 2, 2)
         cvzone.putTextRect(frame, f'Total: {up + down}', (800, 60), 2, 2)
 
-        # Check if 1 minute has passed
-        if datetime.now() - last_update_time >= timedelta(minutes=0.5):
+        # Check if it's time to update the database
+        if datetime.now() - last_update_time >= timedelta(minutes=1):
             last_update_time = datetime.now()  # Reset the timer
             # Get current date and time
             now = datetime.now()
@@ -151,23 +165,16 @@ async def process_video(cam_index):
     cap.release()
     cv2.destroyAllWindows()
 
-# WebSocket server function
-async def communication(websocket, path):
-    global shared_data
-
-    while True:
-        for data in shared_data:
-            if data:
-                await websocket.send(data)
-        await asyncio.sleep(0)  # Adjust the delay as needed
 
 # Main function to start WebSocket server and video processing
-async def main():
-    start_server = websockets.serve(communication, "localhost", 8765)
-    await start_server
 
-    video_tasks = [asyncio.create_task(process_video(i)) for i in range(len(caps))]
+
+async def main():
+
+    video_tasks = [asyncio.create_task(process_video(i))
+                   for i in range(len(caps))]
     await asyncio.gather(*video_tasks)
+
 
 # Run the main function
 asyncio.run(main())
