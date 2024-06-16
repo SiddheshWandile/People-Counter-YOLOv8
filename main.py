@@ -4,7 +4,7 @@ from ultralytics import YOLO
 from tracker import Tracker
 import cvzone
 import asyncio
-import sqlite3
+from pymongo import MongoClient
 from datetime import datetime, timedelta
 
 # Load YOLO model
@@ -43,21 +43,12 @@ cy1, cy2, offset = 194, 240, 6
 # Shared data variable
 shared_data = [None] * len(camera_sources)
 
-# Create a new SQLite database (or connect to an existing one)
-conn = sqlite3.connect('people_count.db')
-cursor = conn.cursor()
-
-# Create a table to store the data
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS PeopleCount (
-    date TEXT,
-    time TEXT,
-    enter INTEGER,
-    exit INTEGER,
-    total INTEGER
-)
-''')
-conn.commit()
+# Connect to MongoDB
+# Update the URI as needed
+client = MongoClient(
+    'mongodb+srv://SiddheshWan:Pass123@peoplecount1.ewmaagh.mongodb.net/peoplecount1?retryWrites=true&w=majority')
+db = client['people_count_db']
+collection = db['people_count']
 
 # Function to process video frames for a specific camera
 
@@ -149,12 +140,14 @@ async def process_video(cam_index):
             date = now.strftime("%d-%m-%Y")
             time = now.strftime("%H:%M")
 
-            # Insert data into the database
-            cursor.execute('''
-            INSERT INTO PeopleCount (date, time, enter, exit, total)
-            VALUES (?, ?, ?, ?, ?)
-            ''', (date, time, count_enter, count_exit, count_enter + count_exit))
-            conn.commit()
+            # Insert data into the MongoDB collection
+            collection.insert_one({
+                'date': date,
+                'time': time,
+                'enter': count_enter,
+                'exit': count_exit,
+                'total': count_enter + count_exit
+            })
 
         cv2.imshow(f"RGB {cam_index}", frame)
         if cv2.waitKey(1) & 0xFF == 27:
@@ -165,16 +158,13 @@ async def process_video(cam_index):
     cap.release()
     cv2.destroyAllWindows()
 
-
 # Main function to start WebSocket server and video processing
 
 
 async def main():
-
     video_tasks = [asyncio.create_task(process_video(i))
                    for i in range(len(caps))]
     await asyncio.gather(*video_tasks)
-
 
 # Run the main function
 asyncio.run(main())
