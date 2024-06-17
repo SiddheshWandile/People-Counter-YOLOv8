@@ -1,5 +1,4 @@
 import cv2
-import pandas as pd
 from ultralytics import YOLO
 from tracker import Tracker
 import cvzone
@@ -10,22 +9,11 @@ from datetime import datetime, timedelta
 # Load YOLO model
 model = YOLO('yolov8s.pt')
 
-# # Function to capture mouse events (currently just printing coordinates)
-# def RGB(event, x, y, flags, param):
-#     if event == cv2.EVENT_MOUSEMOVE:
-#         point = [x, y]
-#         print(point)
-
-# # Set up mouse callback
-# cv2.namedWindow('RGB')
-# cv2.setMouseCallback('RGB', RGB)
-
 # Load class list
 with open("coco.txt", "r") as my_file:
     class_list = my_file.read().split("\n")
 
 # Initialize variables
-# Add your camera sources here
 camera_sources = ['vidp.mp4']
 caps = [cv2.VideoCapture(src) for src in camera_sources]
 
@@ -40,27 +28,20 @@ count_exit = 0
 
 cy1, cy2, offset = 194, 240, 6
 
-# Shared data variable
-shared_data = [None] * len(camera_sources)
-
 # Connect to MongoDB
-# Update the URI as needed
 client = MongoClient(
     'mongodb+srv://SiddheshWan:Pass123@peoplecount1.ewmaagh.mongodb.net/peoplecount1?retryWrites=true&w=majority')
 db = client['people_count_db']
-collection = db['people_count']
+collection = db['PeopleCount']
 
 # Function to process video frames for a specific camera
-
-
 async def process_video(cam_index):
-    global counts, person_down, counter_down, person_up, counter_up, shared_data, count_enter, count_exit
+    global counts, person_down, counter_down, person_up, counter_up, count_enter, count_exit
 
     cap = caps[cam_index]
     tracker = trackers[cam_index]
     frame_skip = 3  # Process every 3rd frame to reduce load
-
-    last_update_time = datetime.now()  # Initialize last_update_time
+    last_update_time = datetime.now()  # Initialize the last update time
 
     while True:
         ret, frame = cap.read()
@@ -81,7 +62,6 @@ async def process_video(cam_index):
             for box in result.boxes:
                 # Extract the bounding box coordinates safely
                 try:
-                    # Get the first bounding box
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     d = int(box.cls[0])  # Get the class index
                     c = class_list[d]
@@ -127,20 +107,19 @@ async def process_video(cam_index):
 
         down = len(counter_down[cam_index])
         up = len(counter_up[cam_index])
-
         cvzone.putTextRect(frame, f'Enter: {down}', (50, 60), 2, 2)
         cvzone.putTextRect(frame, f'Exit: {up}', (50, 100), 2, 2)
         cvzone.putTextRect(frame, f'Total: {up + down}', (800, 60), 2, 2)
 
-        # Check if it's time to update the database
-        if datetime.now() - last_update_time >= timedelta(minutes=1):
+        # Check if 1 minute has passed
+        if datetime.now() - last_update_time >= timedelta(minutes=0.5):
             last_update_time = datetime.now()  # Reset the timer
             # Get current date and time
             now = datetime.now()
             date = now.strftime("%d-%m-%Y")
             time = now.strftime("%H:%M")
 
-            # Insert data into the MongoDB collection
+            # Insert data into the database
             collection.insert_one({
                 'date': date,
                 'time': time,
@@ -158,12 +137,9 @@ async def process_video(cam_index):
     cap.release()
     cv2.destroyAllWindows()
 
-# Main function to start WebSocket server and video processing
-
-
+# Main function to start video processing
 async def main():
-    video_tasks = [asyncio.create_task(process_video(i))
-                   for i in range(len(caps))]
+    video_tasks = [asyncio.create_task(process_video(i)) for i in range(len(caps))]
     await asyncio.gather(*video_tasks)
 
 # Run the main function
